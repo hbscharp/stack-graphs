@@ -113,6 +113,7 @@ struct StackGraphLoader<'a> {
 
 impl<'a> StackGraphLoader<'a> {
     fn load(&mut self) -> Result<(), LoadError> {
+        // First create a stack graph node for each TSG node.
         for node_ref in self.graph.iter_nodes() {
             let node = &self.graph[node_ref];
             let handle = match get_node_type(node)? {
@@ -126,6 +127,24 @@ impl<'a> StackGraphLoader<'a> {
             };
             self.load_span(node, handle)?;
         }
+
+        // Then add stack graph edges for each TSG edge.
+        for source_ref in self.graph.iter_nodes() {
+            let source = &self.graph[source_ref];
+            let source_node_id = self.node_id_for_graph_node(source_ref);
+            let source_handle = self.stack_graph.node_for_id(source_node_id).unwrap();
+            for (sink_ref, edge) in source.iter_edges() {
+                let precedence = match edge.attributes.get("precedence") {
+                    Some(precedence) => precedence.as_integer()? as i32,
+                    None => 0,
+                };
+                let sink_node_id = self.node_id_for_graph_node(sink_ref);
+                let sink_handle = self.stack_graph.node_for_id(sink_node_id).unwrap();
+                self.stack_graph
+                    .add_edge(source_handle, sink_handle, precedence);
+            }
+        }
+
         Ok(())
     }
 }
