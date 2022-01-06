@@ -18,6 +18,8 @@ use tree_sitter_graph::functions::Functions;
 use tree_sitter_graph::graph::Graph;
 use tree_sitter_graph::graph::GraphNode;
 use tree_sitter_graph::graph::GraphNodeRef;
+use tree_sitter_graph::graph::Value;
+use tree_sitter_graph::Identifier;
 use tree_sitter_graph::Variables;
 
 /// Holds information about how to construct stack graphs for a particular language
@@ -25,7 +27,6 @@ pub struct StackGraphLanguage {
     parser: Parser,
     tsg: tree_sitter_graph::ast::File,
     functions: Functions,
-    globals: Variables,
 }
 
 impl StackGraphLanguage {
@@ -40,12 +41,10 @@ impl StackGraphLanguage {
         let mut tsg = tree_sitter_graph::ast::File::new(language);
         tsg.parse(tsg_source)?;
         let functions = Functions::stdlib();
-        let globals = Variables::new();
         Ok(StackGraphLanguage {
             parser,
             tsg,
             functions,
-            globals,
         })
     }
 }
@@ -74,9 +73,22 @@ impl StackGraphLanguage {
             .parser
             .parse(source, None)
             .ok_or(LoadError::ParseError)?;
-        let graph = self
-            .tsg
-            .execute(&tree, source, &mut self.functions, &mut self.globals)?;
+        let mut graph = Graph::new();
+        let mut globals = Variables::new();
+        globals
+            .add_immutable(
+                Identifier::from("ROOT_NODE"),
+                Value::GraphNode(graph.add_graph_node()),
+            )
+            .unwrap();
+        globals
+            .add_immutable(
+                Identifier::from("JUMP_TO_SCOPE_NODE"),
+                Value::GraphNode(graph.add_graph_node()),
+            )
+            .unwrap();
+        self.tsg
+            .execute_into(&mut graph, &tree, source, &mut self.functions, &mut globals)?;
         let mut loader = StackGraphLoader {
             stack_graph,
             file,
@@ -113,8 +125,10 @@ struct StackGraphLoader<'a> {
 
 impl<'a> StackGraphLoader<'a> {
     fn load(&mut self) -> Result<(), LoadError> {
-        // First create a stack graph node for each TSG node.
-        for node_ref in self.graph.iter_nodes() {
+        // First create a stack graph node for each TSG node.  (The skip(2) is because the first
+        // two DSL nodes that we create are the proxies for the stack graph's “root” and “jump to
+        // scope” nodes.)
+        for node_ref in self.graph.iter_nodes().skip(2) {
             let node = &self.graph[node_ref];
             let handle = match get_node_type(node)? {
                 NodeType::Definition => self.load_definition(node, node_ref)?,
@@ -128,7 +142,10 @@ impl<'a> StackGraphLoader<'a> {
             self.load_span(node, handle)?;
         }
 
-        // Then add stack graph edges for each TSG edge.
+        // Then add stack graph edges for each TSG edge.  Note that we _don't_ skip(2) here because
+        // there might be outgoing nodes from the “root” node that we need to process.
+        // (Technically the caller could add outgoing nodes from “jump to scope” as well, but those
+        // are invalid according to the stack graph semantics and will never be followed.
         for source_ref in self.graph.iter_nodes() {
             let source = &self.graph[source_ref];
             let source_node_id = self.node_id_for_graph_node(source_ref);
@@ -186,7 +203,13 @@ fn get_node_type(node: &GraphNode) -> Result<NodeType, LoadError> {
 impl<'a> StackGraphLoader<'a> {
     fn node_id_for_graph_node(&self, node_ref: GraphNodeRef) -> NodeID {
         let index = node_ref.index();
-        NodeID::new_in_file(self.file, index as u32)
+        if index == 0 {
+            NodeID::root()
+        } else if index == 1 {
+            NodeID::jump_to()
+        } else {
+            NodeID::new_in_file(self.file, (node_ref.index() as u32) - 2)
+        }
     }
 
     fn load_definition(

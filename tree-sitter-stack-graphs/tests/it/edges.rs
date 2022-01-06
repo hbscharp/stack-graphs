@@ -82,3 +82,37 @@ fn can_create_edges_with_precedence() {
         ],
     );
 }
+
+#[test]
+fn can_create_edges_to_singleton_nodes() {
+    let tsg = r#"
+      (identifier) @id {
+         node source
+         attr (source) type = "reference", symbol = (source-text @id)
+         edge source -> ROOT_NODE
+         attr (source -> ROOT_NODE) precedence = 6
+         edge source -> JUMP_TO_SCOPE_NODE
+         attr (source -> JUMP_TO_SCOPE_NODE) precedence = 6
+      }
+
+      (identifier) @id {
+         node sink
+         attr (sink) type = "definition", symbol = (source-text @id)
+         edge ROOT_NODE -> sink
+         attr (ROOT_NODE -> sink) precedence = 12
+         edge JUMP_TO_SCOPE_NODE -> sink
+         attr (JUMP_TO_SCOPE_NODE -> sink) precedence = 12
+      }
+    "#;
+    let python = "a";
+    check_stack_graph_edges(
+        python,
+        tsg,
+        &[
+            "[test.py(0) reference a] -6-> [jump to scope]", //
+            "[test.py(0) reference a] -6-> [root]",
+            "[jump to scope] -12-> [test.py(1) definition a]",
+            "[root] -12-> [test.py(1) definition a]",
+        ],
+    );
+}
