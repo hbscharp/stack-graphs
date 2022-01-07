@@ -2,5 +2,6 @@
 members = [
   "lsp-positions",
   "stack-graphs",
+  "stack-graphs-cli",
   "tree-sitter-stack-graphs",
 ]

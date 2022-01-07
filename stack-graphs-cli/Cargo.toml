@@ -1,0 +1,17 @@
+[package]
+name = "stack-graphs-cli"
+version = "0.0.0"
+description = "Command-line program for creating and working with stack-graphs"
+homepage = "https://github.com/github/stack-graphs"
+repository = "https://github.com/github/stack-graphs/"
+readme = "README.md"
+license = "MIT OR Apache-2.0"
+authors = [
+  "GitHub <opensource+stack-graphs@github.com>",
+  "Douglas Creager <dcreager@dcreager.net>"
+]
+edition = "2018"
+
+[dependencies]
+stack-graphs = { version="0.4", path="../stack-graphs" }
+tree-sitter-stack-graphs = { version="0.0", path="../tree-sitter-stack-graphs" }
