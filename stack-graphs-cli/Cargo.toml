@@ -13,5 +13,10 @@ authors = [
 edition = "2018"
 
 [dependencies]
+anyhow = "1.0"
+clap = { version="3", features=["derive"] }
 stack-graphs = { version="0.4", path="../stack-graphs" }
+tree-sitter = "0.19"
+tree-sitter-config = "0.19"
+tree-sitter-loader = "0.19"
 tree-sitter-stack-graphs = { version="0.0", path="../tree-sitter-stack-graphs" }
